@@ -2,6 +2,7 @@
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <fstream>
 
 #include "server.h"
 
@@ -67,6 +68,7 @@ DWORD WINAPI Server::listenThreadStatic(void *param)
 }
 
 #define SERVER_PORT "21346"
+#define IN_BUFFER_SIZE	1024
 
 void Server::listenThread()
 {
@@ -128,6 +130,11 @@ void Server::listenThread()
 	tv.tv_sec = 1;//1 second
 	tv.tv_usec = 0;
 
+	char buffer[IN_BUFFER_SIZE];
+	int sizeFile = 0;
+	std::string sizeFileStr = "";
+	std::string fileName = "";
+	std::ofstream oFile;
 	while (!terminateThread_)
 	{
 		FD_SET(listenSocket, &readfds);
@@ -147,14 +154,44 @@ void Server::listenThread()
 				{
 					sockaddr_in remote_addr;
 					int addr_size = sizeof(remote_addr);
-					int read = recvfrom(listenSocket, (char*)dgram_buffer, max_dgram_size, 0, (sockaddr*)&remote_addr, &addr_size);
+					int read = recvfrom(listenSocket, (char*)buffer, IN_BUFFER_SIZE, 0, (sockaddr*)&remote_addr, &addr_size);
+
 					if (read > 0)
-					{//we just received UDP packet
-						dgram_buffer[read] = 0;
-						printf("From %d.%d.%d.%d:%d - %s", remote_addr.sin_addr.S_un.S_un_b.s_b1, remote_addr.sin_addr.S_un.S_un_b.s_b2,
-							remote_addr.sin_addr.S_un.S_un_b.s_b3, remote_addr.sin_addr.S_un.S_un_b.s_b4, ntohs(remote_addr.sin_port),
-							dgram_buffer);
+					{
+						if (fileName == "") {
+							int i = 0;
+							for (; i < read; ++i) {
+								if (buffer[i] == '*')
+									break;
+								fileName += buffer[i];
+							}
+							++i;
+							for (; i < read; ++i) {
+								if (buffer[i] == '*')
+									break;
+								sizeFileStr += buffer[i];
+							}
+							++i;
+							sizeFile = std::stoi(sizeFileStr);
+							sizeFileStr = "";
+							oFile.open(fileName, std::ios::out | std::ios::binary);
+							oFile.write(&buffer[i], read - i);
+							sizeFile = sizeFile - read + i;
+						}
+						else {
+
+							oFile.write(buffer, read);
+
+							sizeFile = sizeFile - read;
+
+							if (sizeFile <= 0) {
+								oFile.close();
+								sizeFile = 0;
+								fileName = "";
+							}
+						}
 					}
+
 				}
 			}
 	}
