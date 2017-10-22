@@ -9,8 +9,8 @@ int main()
 {
 	std::string command;
 
-	Client secondClient;
-	secondClient.start();
+	Client client;
+	client.start();
 
 	while (true)
 	{
@@ -19,8 +19,8 @@ int main()
 		if (command == "quit")
 			break;
 		else
-			std::cout << "Invalid command";
+			client.setFileName(command);
 	}
 
-	secondClient.stop();
+	client.stop();
 }

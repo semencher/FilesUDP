@@ -1,6 +1,7 @@
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <fstream>
 
 #include "client.h"
 
@@ -97,17 +98,78 @@ void Client::thread()
 		closesocket(clientSocket);
 		return;
 	}
+	bool sendName = false;
 	while (!terminateThread_)
 	{
-		char *buffer = "Hello from client by UDP!\n";
-		int buf_size = (int)strlen(buffer);
-		iResult = sendto(clientSocket, buffer, buf_size, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
-		if (iResult == SOCKET_ERROR)
-		{
-			printf("send from client by UDP failed with error: %d\n", WSAGetLastError());
-			break;
+		bool forDelete = false;
+		char *buffer = nullptr;
+		if (!fileName_.empty()) {
+
+			const size_t sizeBuffer = 400;
+
+			std::ifstream iFile;
+			iFile.open(fileName_, std::ios::in | std::ios::binary);
+
+			iFile.seekg(0, std::ios::end);
+			size_t length = iFile.tellg();
+			iFile.seekg(0, std::ios::beg);
+
+			buffer = new char[sizeBuffer + 1];
+
+
+			if (!sendName) {
+				int i = 0;
+				for (; i < fileName_.size(); ++i) {
+					buffer[i] = fileName_[i];
+				}
+				buffer[i] = '*';
+				++i;
+				std::string size = std::to_string(length);
+				for (int j = 0; j < size.size(); ++j, ++i) {
+					buffer[i] = size[j];
+				}
+				buffer[i] = '*';
+				buffer[i + 1] = '\0';
+				++i;
+
+				iResult = sendto(clientSocket, buffer, i, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+				sendName = true;
+			}
+
+			int sent = 0;
+			while (length > sizeBuffer) {
+				iFile.read(buffer, sizeBuffer);
+				buffer[sizeBuffer] = '\0';
+				iResult = sendto(clientSocket, buffer, sizeBuffer, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("send from client failed with error: %d\n", WSAGetLastError());
+					std::cout << sent;
+					break;
+				}
+				sent += iResult;
+				length = length - sizeBuffer;
+			}
+			if (length > 0) {
+				iFile.read(buffer, length);
+				buffer[length] = '\0';
+				iResult = sendto(clientSocket, buffer, length, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("send from client failed with error: %d\n", WSAGetLastError());
+					break;
+				}
+				sent += iResult;
+			}
+
+			fileName_ = "";
+			forDelete = true;
+			sendName = false;
 		}
+
 		Sleep(1000);
+		if (forDelete)
+			delete[]buffer;
 	}
 	freeaddrinfo(server_addr);
 	iResult = shutdown(clientSocket, SD_SEND);

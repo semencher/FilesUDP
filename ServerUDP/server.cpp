@@ -127,6 +127,7 @@ void Server::listenThread()
 	struct timeval tv;
 	tv.tv_sec = 1;//1 second
 	tv.tv_usec = 0;
+
 	while (!terminateThread_)
 	{
 		FD_SET(listenSocket, &readfds);
