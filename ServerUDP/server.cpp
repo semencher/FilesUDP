@@ -122,8 +122,6 @@ void Server::listenThread()
 		closesocket(listenSocket);
 		return;
 	}
-	//create a buffer to receive UDP data
-	char *dgram_buffer = (char*)malloc(max_dgram_size);
 
 	FD_ZERO(&readfds);
 	struct timeval tv;
@@ -144,11 +142,7 @@ void Server::listenThread()
 			perror("Select: some kind of an error"); // error occurred in select()
 		}
 		else
-			if (rv == 0)
-			{
-				//printf("Timeout occurred! No data after 1 second.\n");
-			}
-			else
+			if (rv != 0)
 			{
 				if (FD_ISSET(listenSocket, &readfds))
 				{
@@ -177,6 +171,7 @@ void Server::listenThread()
 							oFile.open(fileName, std::ios::out | std::ios::binary);
 							oFile.write(&buffer[i], read - i);
 							sizeFile = sizeFile - read + i;
+							std::cout << "I started receiving the file " << fileName << "\n";
 						}
 						else {
 
@@ -187,6 +182,9 @@ void Server::listenThread()
 							if (sizeFile <= 0) {
 								oFile.close();
 								sizeFile = 0;
+								if (fileName != "") {
+									std::cout << "The file " << fileName << " was received.\n";
+								}
 								fileName = "";
 							}
 						}
@@ -198,6 +196,4 @@ void Server::listenThread()
 
 	// No longer need server socket
 	closesocket(listenSocket);
-
-	free(dgram_buffer);
 }

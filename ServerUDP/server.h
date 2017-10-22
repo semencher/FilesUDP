@@ -19,4 +19,5 @@ private:
 	bool terminateThread_;
 	HANDLE threadH_;
 	DWORD threadDW_;
+
 };	// class Server

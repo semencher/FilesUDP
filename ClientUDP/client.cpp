@@ -161,6 +161,9 @@ void Client::thread()
 				}
 				sent += iResult;
 			}
+			if (fileName_ != "") {
+				std::cout << "File " << fileName_ << " was sent!\n";
+			}
 
 			fileName_ = "";
 			forDelete = true;
