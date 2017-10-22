@@ -12,6 +12,17 @@ Server::Server()
 
 void Server::run()
 {
+	// Добавил, так как без этого 10093.
+	WSADATA wsaData;
+	int iResult;
+	// Initialize Winsock
+	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != 0)
+	{
+		printf("WSAStartup failed with error: %d\n", iResult);
+		return;
+	}
+
 	std::string command;
 	startListen();
 

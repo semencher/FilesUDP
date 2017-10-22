@@ -4,5 +4,6 @@
 
 int main()
 {
-
+	Server server;
+	server.run();
 }

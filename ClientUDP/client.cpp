@@ -51,6 +51,15 @@ void Client::thread()
 	hints.ai_protocol = IPPROTO_UDP;
 	hints.ai_flags = AI_PASSIVE;
 
+	WSADATA wsaData;
+	// Initialize Winsock
+	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != 0)
+	{
+		printf("WSAStartup failed with error: %d\n", iResult);
+		return;
+	}
+
 	iResult = getaddrinfo("localhost", SERVER_PORT, &hints, &server_addr);
 	if (iResult != 0)
 	{
@@ -109,4 +118,5 @@ void Client::thread()
 	closesocket(clientSocket);
 
 	std::cout << "Client has been stopped.\n";
+	WSACleanup();
 }
