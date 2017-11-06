@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <fstream>
@@ -99,6 +100,8 @@ void Client::thread()
 		return;
 	}
 	bool sendName = false;
+	// Переменная с индексом текущего пакета.
+	int id = 1;
 	while (!terminateThread_)
 	{
 		bool forDelete = false;
@@ -106,6 +109,8 @@ void Client::thread()
 		if (!fileName_.empty()) {
 
 			const size_t sizeBuffer = 400;
+			const size_t sizeSpecBuffer = 100;
+			char specBuffer[sizeSpecBuffer];
 
 			std::ifstream iFile;
 			iFile.open(fileName_, std::ios::in | std::ios::binary);
@@ -116,31 +121,68 @@ void Client::thread()
 
 			buffer = new char[sizeBuffer + 1];
 
+			// Убеждаемся в доставке.
+			auto l = [&] (int i) {
+				// Убеждаемся в доставке.
+				while (true) {
+					sockaddr_in remote_addr;
+					int addr_size = sizeof(remote_addr);
+					int read = recvfrom(clientSocket, (char*)specBuffer, sizeSpecBuffer, 0, (sockaddr*)&remote_addr, &addr_size);
+					if (read > 0) {
+						int index = 0;
+						std::string idStr = "";
+						for (; index < read; ++index) {
+							idStr += specBuffer[index];
+						}
+						if (id == std::stoi(idStr)) {
+							id++;
+							break;
+						}
+					}
+					iResult = sendto(clientSocket, buffer, i, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+				}
+			};
 
 			if (!sendName) {
+
+				// Здесь добавляем в начало пакета индекс.
+				std::string idStrM = std::to_string(id) + "*";
+				std::strcpy(buffer, idStrM.c_str());
+
+				int k = idStrM.size();
 				int i = 0;
 				for (; i < fileName_.size(); ++i) {
-					buffer[i] = fileName_[i];
+					buffer[i + k] = fileName_[i];
 				}
-				buffer[i] = '*';
+				buffer[i + k] = '*';
 				++i;
 				std::string size = std::to_string(length);
 				for (int j = 0; j < size.size(); ++j, ++i) {
-					buffer[i] = size[j];
+					buffer[i + k] = size[j];
 				}
-				buffer[i] = '*';
-				buffer[i + 1] = '\0';
+				buffer[i + k] = '*';
 				++i;
 
-				iResult = sendto(clientSocket, buffer, i, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+				iResult = sendto(clientSocket, buffer, i + k, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+
+				// Убеждаемся в доставке.
+				l(i + k);
 				sendName = true;
 			}
 
 			int sent = 0;
-			while (length > sizeBuffer) {
-				iFile.read(buffer, sizeBuffer);
-				buffer[sizeBuffer] = '\0';
+			while (length > sizeBuffer - std::to_string(id).size() - 1) {
+				// Здесь помещаем индекс в начало сообщения.
+				std::string idStrM = std::to_string(id) + "*";
+				std::strcpy(buffer, idStrM.c_str());
+				int i = idStrM.size();
+
+				iFile.read(&buffer[i], sizeBuffer - i);
 				iResult = sendto(clientSocket, buffer, sizeBuffer, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+
+				// Убеждаемся в доставке.
+				l(sizeBuffer);
+
 				if (iResult == SOCKET_ERROR)
 				{
 					printf("send from client failed with error: %d\n", WSAGetLastError());
@@ -148,12 +190,20 @@ void Client::thread()
 					break;
 				}
 				sent += iResult;
-				length = length - sizeBuffer;
+				length = length - sizeBuffer + i;
 			}
 			if (length > 0) {
-				iFile.read(buffer, length);
-				buffer[length] = '\0';
-				iResult = sendto(clientSocket, buffer, length, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+				// Здесь снова помещаем индекс в начало сообщения.
+				std::string idStrM = std::to_string(id) + "*";
+				std::strcpy(buffer, idStrM.c_str());
+				int i = idStrM.size();
+
+				iFile.read(&buffer[i], length);
+				iResult = sendto(clientSocket, buffer, length + i, 0, server_addr->ai_addr, (int)server_addr->ai_addrlen);
+				
+				// Здесь убеждаемся в доставке.
+				l(length + i);
+
 				if (iResult == SOCKET_ERROR)
 				{
 					printf("send from client failed with error: %d\n", WSAGetLastError());
@@ -163,6 +213,7 @@ void Client::thread()
 			}
 			if (fileName_ != "") {
 				std::cout << "File " << fileName_ << " was sent!\n";
+				id = 1;
 			}
 
 			fileName_ = "";

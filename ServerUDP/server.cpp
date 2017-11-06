@@ -131,6 +131,9 @@ void Server::listenThread()
 	char buffer[IN_BUFFER_SIZE];
 	int sizeFile = 0;
 	std::string sizeFileStr = "";
+	// id передаваемого фрагмента.
+	std::string idStr = "";
+	int id = 1;
 	std::string fileName = "";
 	std::ofstream oFile;
 	while (!terminateThread_)
@@ -152,8 +155,26 @@ void Server::listenThread()
 
 					if (read > 0)
 					{
+						// Здесь необходимо сообщить, что мы получили пакет, и в каком количестве.
+						int index = 0;
+						for (; index < read; ++index) {
+							if (buffer[index] == '*') {
+								break;
+							}
+							idStr += buffer[index];
+						}
+						if (id == std::stoi(idStr)) {
+							id++;
+							sendto(listenSocket, idStr.c_str(), index, 0, (sockaddr*)&remote_addr, addr_size);
+						}
+						else {
+							idStr = "";
+							continue;
+						}
+						++index;
+
 						if (fileName == "") {
-							int i = 0;
+							int i = index;
 							for (; i < read; ++i) {
 								if (buffer[i] == '*')
 									break;
@@ -174,13 +195,14 @@ void Server::listenThread()
 							std::cout << "I started receiving the file " << fileName << "\n";
 						}
 						else {
+							
+							oFile.write(&buffer[index], read - index);
 
-							oFile.write(buffer, read);
-
-							sizeFile = sizeFile - read;
+							sizeFile = sizeFile - read + index;
 
 							if (sizeFile <= 0) {
 								oFile.close();
+								id = 1;
 								sizeFile = 0;
 								if (fileName != "") {
 									std::cout << "The file " << fileName << " was received.\n";
@@ -188,12 +210,12 @@ void Server::listenThread()
 								fileName = "";
 							}
 						}
+						idStr = "";
 					}
 
 				}
 			}
 	}
-
 	// No longer need server socket
 	closesocket(listenSocket);
 }
